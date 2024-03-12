@@ -1,77 +1,68 @@
-terraform {
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "=3.93.0"
-    }
-  }
+resource "azurerm_resource_group" "main" {
+  name     = var.rg_name
+  location = var.rg_location
 }
 
-# Configure the Microsoft Azure Provider
-provider "azurerm" {
-  features {}
-  subscription_id = "c689768f----------------"
-  tenant_id = "589648a9-------------------------"
-  client_id = "f9e6bb0f---------------------------"
-  client_secret = "MXx8Q~HE----------------------""
-}
-resource "azurerm_resource_group" "example" {
-  name     = "example-resources"
-  location = "southeastasia"
+resource "azurerm_virtual_network" "main" {
+  name                = var.vnet_name
+  address_space       = var.vnet_address
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
 }
 
-resource "azurerm_virtual_network" "example" {
-  name                = "example-network"
-  address_space       = ["10.0.0.0/16"]
-  location            = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
+resource "azurerm_subnet" "vm-subnet" {
+  name                 = var.vm_subnet_name
+  address_prefixes     = var.vm_subnet_address
+  resource_group_name  = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.main.name
+  service_endpoints = ["Microsoft.Sql","Microsoft.Storage"]
 }
 
-resource "azurerm_subnet" "vm_subnet" {
-  name                 = "vm-subnet"
-  address_prefixes     = ["10.0.1.0/24"]
-  resource_group_name  = azurerm_resource_group.example.name
-  virtual_network_name = azurerm_virtual_network.example.name
-}
-
-resource "azurerm_subnet" "db_subnet" {
-  name                 = "db-subnet"
-  address_prefixes     = ["10.0.2.0/24"]
-  resource_group_name  = azurerm_resource_group.example.name
-  virtual_network_name = azurerm_virtual_network.example.name
-
-esource "azurerm_network_security_group" "example" {
-  name                = "example-nsg"
-  location            = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
-}
-
-resource "azurerm_network_interface" "vm_nic" {
-  name                = "vm-nic"
-  location            = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
+resource "azurerm_network_interface" "vm-nic" {
+  name                = var.vm_nic_name
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
 
   ip_configuration {
     name                          = "internal"
-    subnet_id                     = azurerm_subnet.vm_subnet.id
+    subnet_id                     = azurerm_subnet.vm-subnet.id
     private_ip_address_allocation = "Dynamic"
-
-    // Associate NSG with IP configuration
-    # still working on this
-    network_security_group_id = azurerm_network_security_group.example.id
   }
 }
 
-resource "azurerm_linux_virtual_machine" "example" {
-  name                = "example-vm"
-  resource_group_name = azurerm_resource_group.example.name
-  location            = azurerm_resource_group.example.location
-  size                = "Standard_B2s"
-  admin_username      = "azureuser"
-  network_interface_ids = [azurerm_network_interface.example.id,]
+resource "azurerm_network_security_group" "vm-nsg" {
+  name                = var.vm_nsg_name
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+
+  security_rule {
+    name                       = "ssh"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_subnet_network_security_group_association" "main" {
+  subnet_id                 = azurerm_subnet.vm-subnet.id
+  network_security_group_id = azurerm_network_security_group.vm-nsg.id
+}
+
+resource "azurerm_linux_virtual_machine" "main" {
+  name                = var.vm_name
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  size                = var.vm_size
+  admin_username      = var.vm_adminuser
+  network_interface_ids = [azurerm_network_interface.vm-nic.id,]
 
 disable_password_authentication = false
-  admin_password = "Mynameis1234"
+  admin_password = var.vm_adminpass
 
 
   os_disk {
@@ -84,44 +75,70 @@ disable_password_authentication = false
     sku       = "22_04-lts"
     version   = "latest"
   }
-
 }
-resource "azurerm_postgresql_server" "example" {
-  name                = "example123-psql-server"
-  location            = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
 
-  sku_name = "B_Gen5_2"
-  version  = "9.5"
+resource "azurerm_subnet" "psql-subnet" {
+  name                 = var.psql_subnet_name
+  address_prefixes     = var.psql_subnet_address
+  resource_group_name  = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.main.name
+}
 
-  storage_mb                   = 5120
-  backup_retention_days        = 7
-  geo_redundant_backup_enabled = false
-  auto_grow_enabled            = true
 
-  administrator_login          = "psqladmin"
-  administrator_login_password = "Mynameis1234"
+resource "azurerm_postgresql_server" "main" {
+  name                = var.psql_server_name
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+
+  sku_name = "B_Gen5_1"
+  version  = "11"
+
+  storage_mb                   = 640000
+  #backup_retention_days        = 7
+  #geo_redundant_backup_enabled = false
+  #auto_grow_enabled            = true
+
+  administrator_login          = var.psql_server_admin_login
+  administrator_login_password = var.psql_server_admin_login_password
   ssl_enforcement_enabled      = false
   ssl_minimal_tls_version_enforced = "TLSEnforcementDisabled"
 
-  public_network_access_enabled = false
+  public_network_access_enabled = true
 }
 
 resource "azurerm_postgresql_database" "example" {
-  name                = "exampledb"
-  resource_group_name = azurerm_resource_group.example.name
-  server_name         = azurerm_postgresql_server.example.name
+  name                = var.db_name
+  resource_group_name = azurerm_resource_group.main.name
+  server_name         = azurerm_postgresql_server.main.name
   charset             = "UTF8"
   collation           = "English_United States.1252"
 }
+# start and end ip is "0.0.0.0" to allow access to azure services.
+resource "azurerm_postgresql_firewall_rule" "example" {
+  name                = "allow-vm-subnet"
+  resource_group_name = azurerm_resource_group.main.name
+  server_name         = azurerm_postgresql_server.main.name
+  start_ip_address    = "0.0.0.0"
+  end_ip_address      = "0.0.0.0"
+}
 
-#setting up the postgres db endpoint and firewall
+
+resource "azurerm_storage_account" "main" {
+  name                     = var.storage_account_name
+  resource_group_name      = azurerm_resource_group.main.name
+  location                 = azurerm_resource_group.main.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+
+network_rules {
+    default_action             = "Allow"
+    virtual_network_subnet_ids = [azurerm_subnet.vm-subnet.id]
+  }
+}
 
 
-
-
-
-
-
-
-  
+resource "azurerm_storage_container" "main" {
+  name                  = var.storage_container_name
+  storage_account_name  = azurerm_storage_account.main.name
+  container_access_type = "private"
+}

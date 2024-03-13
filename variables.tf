@@ -40,6 +40,7 @@ variable "vm_nic_name" {
   type        = string
   default = "vm-nic"
 }
+
 variable "vm_nsg_name" {
   description = "Name of the nsg"
   type        = string
@@ -52,7 +53,6 @@ variable "vm_name" {
   type        = string
   default = "vmname"
 }
-
 
 variable "vm_adminuser" {
   description = "Admin username of the virtual machine"
@@ -81,6 +81,8 @@ variable "psql_subnet_name" {
   type        = string
   default = "psql-subnet"
 }
+
+
 variable "psql_subnet_address" {
   description = "address of psql subnet"
   type        = list(string)
@@ -98,7 +100,7 @@ variable "psql_server_name" {
 variable "psql_server_admin_login" {
   description = "admin login user of the psql server"
   type        = string
-  default = "psqladmin"
+  default = "azureuser"
 }
 
 variable "psql_server_admin_login_password" {
@@ -114,6 +116,7 @@ variable "db_name" {
   type        = string
   default = "exampledb"
 }
+
 variable "storage_account_name" {
   description = "Name of the storage account"
   type        = string
@@ -126,4 +129,3 @@ variable "storage_container_name" {
   type        = string
   default = "content"
 }
-

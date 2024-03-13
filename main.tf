@@ -15,7 +15,7 @@ resource "azurerm_subnet" "vm-subnet" {
   address_prefixes     = var.vm_subnet_address
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
-  service_endpoints = ["Microsoft.Sql","Microsoft.Storage"]
+  service_endpoints = ["Microsoft.Sql", "Microsoft.Storage"]
 }
 
 resource "azurerm_network_interface" "vm-nic" {
@@ -29,7 +29,6 @@ resource "azurerm_network_interface" "vm-nic" {
     private_ip_address_allocation = "Dynamic"
   }
 }
-
 resource "azurerm_network_security_group" "vm-nsg" {
   name                = var.vm_nsg_name
   location            = azurerm_resource_group.main.location
@@ -59,8 +58,7 @@ resource "azurerm_linux_virtual_machine" "main" {
   location            = azurerm_resource_group.main.location
   size                = var.vm_size
   admin_username      = var.vm_adminuser
-  network_interface_ids = [azurerm_network_interface.vm-nic.id,]
-
+  network_interface_ids = [azurerm_network_interface.vm-nic.id
 disable_password_authentication = false
   admin_password = var.vm_adminpass
 
@@ -90,7 +88,7 @@ resource "azurerm_postgresql_server" "main" {
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
 
-  sku_name = "B_Gen5_1"
+  sku_name = "GP_Gen5_4"
   version  = "11"
 
   storage_mb                   = 640000
@@ -100,10 +98,10 @@ resource "azurerm_postgresql_server" "main" {
 
   administrator_login          = var.psql_server_admin_login
   administrator_login_password = var.psql_server_admin_login_password
-  ssl_enforcement_enabled      = false
   ssl_minimal_tls_version_enforced = "TLSEnforcementDisabled"
 
   public_network_access_enabled = true
+  ssl_enforcement_enabled          = false
 }
 
 resource "azurerm_postgresql_database" "example" {
@@ -113,9 +111,10 @@ resource "azurerm_postgresql_database" "example" {
   charset             = "UTF8"
   collation           = "English_United States.1252"
 }
-# start and end ip is "0.0.0.0" to allow access to azure services.
+
+#start and end ip is "0.0.0.0" to allow access to azure services.
 resource "azurerm_postgresql_firewall_rule" "example" {
-  name                = "allow-vm-subnet"
+  name                = "allow-azure-services"
   resource_group_name = azurerm_resource_group.main.name
   server_name         = azurerm_postgresql_server.main.name
   start_ip_address    = "0.0.0.0"
@@ -136,9 +135,12 @@ network_rules {
   }
 }
 
+resource "azurerm_storage_container" "example" {
 
-resource "azurerm_storage_container" "main" {
   name                  = var.storage_container_name
   storage_account_name  = azurerm_storage_account.main.name
   container_access_type = "private"
 }
+
+
+
